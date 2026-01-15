@@ -25,28 +25,32 @@ const server = app.listen(PORT, () => {
 });
 
 async function startStream() {
-    // 2. Launch Browser (Headful mode inside Xvfb)
+    // 2. Launch Browser (Handled by Puppeteer)
     console.log("🚀 Launching Browser...");
     const browser = await puppeteer.launch({
-        headless: false, // Must be false to render graphics
+        headless: false, // REQUIRED for Xvfb capture
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
-            '--kiosk', // Fullscreen mode
+            '--disable-gpu', // Vital for VPS
+            '--disable-dev-shm-usage', // Vital for VPS low shared mem
+            '--kiosk',
             `--window-size=${SCREEN_WIDTH},${SCREEN_HEIGHT}`,
             '--autoplay-policy=no-user-gesture-required'
         ],
-        executablePath: '/usr/bin/google-chrome' // Common path, might adjust
+        executablePath: '/usr/bin/google-chrome'
     });
 
     const page = await browser.newPage();
     await page.setViewport({ width: SCREEN_WIDTH, height: SCREEN_HEIGHT });
+    // Add simple logging to browser console to debug rendering
+    page.on('console', msg => console.log('BROWSER PAGE LOG:', msg.text()));
+
     await page.goto(`http://localhost:${PORT}/index.html`);
 
     console.log("✅ Game Loaded. Starting FFmpeg...");
 
     // 3. Start FFmpeg (Capturing X11 Display)
-    // We assume this script is run with 'xvfb-run', so DISPLAY is set (usually :99)
     const display = process.env.DISPLAY || ':99';
 
     const ffmpegArgs = [
@@ -67,8 +71,9 @@ async function startStream() {
 
     const ffmpeg = spawn('ffmpeg', ffmpegArgs);
 
+    // ENABLE LOGS TO DEBUG WHY IT FAILS
     ffmpeg.stderr.on('data', (data) => {
-        // console.log(`ffmpeg: ${data}`); // Uncomment to debug ffmpeg
+        console.log(`ffmpeg: ${data}`);
     });
 
     ffmpeg.on('close', (code) => {
