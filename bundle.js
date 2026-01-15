@@ -24,8 +24,8 @@ const Maps = [
             { x: 0, y: 0, w: 40, h: SCREEN_H }, { x: SCREEN_W - 40, y: 0, w: 40, h: SCREEN_H },
         ],
         traps: [
-            // Central Spike (Requested)
-            { type: 'spike', x: SCREEN_W / 2 - 25, y: SCREEN_H / 2 - 25, w: 50, h: 50 }
+            // Central Spike (Smaller)
+            { type: 'spike', x: SCREEN_W / 2 - 20, y: SCREEN_H / 2 - 20, w: 40, h: 40 }
         ],
         startZone: { x: 100, y: 200, w: SCREEN_W - 200, h: SCREEN_H - 400 }
     }
@@ -277,6 +277,7 @@ class Renderer {
     constructor(canvas) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
+        this.shakeTimer = 0; // NEW
         this.resize();
         window.addEventListener('resize', () => this.resize());
     }
@@ -287,7 +288,16 @@ class Renderer {
     }
 
     clear() {
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // APPLY SHAKE
+        if (this.shakeTimer > 0) {
+            const dx = (Math.random() - 0.5) * 20; // 10px shake
+            const dy = (Math.random() - 0.5) * 20;
+            this.ctx.translate(dx, dy);
+            this.shakeTimer--;
+        }
     }
 
     drawMap(map) {
@@ -338,9 +348,11 @@ class Renderer {
             this.ctx.clip();
 
             // Font adjusted for new radius 18
-            this.ctx.font = `${Math.floor(radius * 2.2)}px Arial`;
+            this.ctx.font = `${Math.floor(radius * 2.0)}px sans-serif`; // Changed from Arial to sans-serif
             this.ctx.fillStyle = '#FFF';
-            this.ctx.fillText(e.emoji, e.x, e.y + (radius * 0.2));
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle'; // Ensure vertical centering
+            this.ctx.fillText(e.emoji, e.x, e.y + (radius * 0.1)); // Adjusted offset
 
             if (e.damageCooldown > 0) {
                 if (Math.floor(Date.now() / 50) % 2 !== 0) {
