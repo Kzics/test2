@@ -19,7 +19,7 @@ if (!STREAM_KEY) {
 const app = express();
 
 app.use((req, res, next) => {
-    // console.log(`📥 HTTP Request: ${req.method} ${req.url}`); // Reduced log noise
+    // console.log(`📥 HTTP Request: ${req.method} ${req.url}`); 
     next();
 });
 
@@ -65,25 +65,25 @@ async function startStream() {
         // INPUT 0: VIDEO (X11)
         '-f', 'x11grab',
         '-s', `${SCREEN_WIDTH}x${SCREEN_HEIGHT}`,
-        '-r', '30',
+        '-r', '25', // 25 FPS (ECO MODE)
         '-i', `${display}.0+0,0`,
 
         // INPUT 1: AUDIO (Silence Generator)
         '-f', 'lavfi',
         '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
 
-        // MAP STREAMS (CRITICAL FOR YOUTUBE)
-        '-map', '0:v', // Video from input 0
-        '-map', '1:a', // Audio from input 1
+        // MAP STREAMS
+        '-map', '0:v',
+        '-map', '1:a',
 
         // VIDEO ENCODING
         '-c:v', 'libx264',
-        '-preset', 'ultrafast', // Speed up encoding for VPS CPU (fixes buffering)
-        '-b:v', '2500k',       // Slightly lower bitrate for stability
-        '-maxrate', '2500k',
-        '-bufsize', '5000k',
+        '-preset', 'ultrafast', // ULTRAFAST (ECO MODE)
+        '-b:v', '2000k',        // 2000k (BALANCED)
+        '-maxrate', '2000k',
+        '-bufsize', '4000k',
         '-pix_fmt', 'yuv420p',
-        '-g', '60',
+        '-g', '50',
 
         // AUDIO ENCODING
         '-c:a', 'aac',
@@ -96,8 +96,9 @@ async function startStream() {
 
     const ffmpeg = spawn('ffmpeg', ffmpegArgs);
 
+    // LOGS ENABLED !!!
     ffmpeg.stderr.on('data', (data) => {
-        // console.log(`ffmpeg: ${data}`); // Uncomment if you need detailed logs
+        console.log(`ffmpeg: ${data}`);
     });
 
     ffmpeg.on('close', (code) => {

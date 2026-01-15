@@ -109,7 +109,7 @@ class Physics {
         this.targetSpeed = 4.0; // Reduced from 12.0
         this.particles = [];
         this.mapBounds = { w: SCREEN_W, h: SCREEN_H };
-        this.substeps = 8;
+        this.substeps = 3; // OPTIMIZED FOR VPS (Was 8)
     }
 
     spawnParticles(x, y, color = '#FFF', count = 3, speed = 5) { // Reduced default count
