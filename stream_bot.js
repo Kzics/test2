@@ -2,7 +2,7 @@ const express = require('express');
 const { spawn } = require('child_process');
 const puppeteer = require('puppeteer');
 const { LiveChat } = require('youtube-chat');
-const fs = require('fs'); // NEW
+const fs = require('fs');
 
 // --- CONFIGURATION ---
 const PORT = 3000;
@@ -45,29 +45,9 @@ async function startStream() {
     const page = await browser.newPage();
     await page.setViewport({ width: SCREEN_WIDTH, height: SCREEN_HEIGHT });
 
-    // Handle Chat Interactions
+    // Handle Chat Interactions with RETRY
     if (CHANNEL_ID) {
-        console.log(`💬 Connecting to Chat for: ${CHANNEL_ID}...`);
-        const liveChat = new LiveChat({ channelId: CHANNEL_ID });
-
-        liveChat.on('start', (liveId) => {
-            console.log(`💬 Connected to Live Stream ID: ${liveId}`);
-        });
-
-        liveChat.on('chat', (chatItem) => {
-            const msg = chatItem.message[0].text;
-            console.log(`💬 ${chatItem.author.name}: ${msg}`);
-
-            if (msg.toLowerCase().includes('!quake')) {
-                console.log("🌋 QUAKE COMMAND RECEIVED!");
-                page.evaluate(() => {
-                    if (window.game) window.game.shakeCamera();
-                });
-            }
-        });
-
-        liveChat.on('error', (err) => console.log("💬 Chat Error:", err));
-        liveChat.start();
+        connectToChat(CHANNEL_ID, page);
     } else {
         console.log("⚠️ No Channel ID provided. Chat interaction disabled.");
     }
@@ -82,20 +62,13 @@ async function startStream() {
 
     const display = process.env.DISPLAY || ':99';
 
-    // AUDIO LOGIC
     let audioArgs = [];
     if (fs.existsSync('bgm.mp3')) {
         console.log("🎵 Custom Audio Found: bgm.mp3 (Looping)");
-        audioArgs = [
-            '-stream_loop', '-1', // Loop forever
-            '-i', 'bgm.mp3'
-        ];
+        audioArgs = ['-stream_loop', '-1', '-i', 'bgm.mp3'];
     } else {
         console.log("🔇 No 'bgm.mp3' found. Using dummy silence.");
-        audioArgs = [
-            '-f', 'lavfi',
-            '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'
-        ];
+        audioArgs = ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'];
     }
 
     const ffmpegArgs = [
@@ -103,9 +76,7 @@ async function startStream() {
         '-s', `${SCREEN_WIDTH}x${SCREEN_HEIGHT}`,
         '-r', '25',
         '-i', `${display}.0+0,0`,
-
-        ...audioArgs, // Insert Audio Args
-
+        ...audioArgs,
         '-map', '0:v',
         '-map', '1:a',
         '-c:v', 'libx264',
@@ -133,5 +104,43 @@ async function startStream() {
         browser.close();
         server.close();
         process.exit(code);
+    });
+}
+
+function connectToChat(channelId, page) {
+    console.log(`💬 Attempting to connect to chat for: ${channelId}...`);
+    const liveChat = new LiveChat({ channelId: channelId });
+
+    liveChat.on('start', (liveId) => {
+        console.log(`💬 ✅ Connected to Live Stream ID: ${liveId}`);
+    });
+
+    liveChat.on('chat', (chatItem) => {
+        const msg = chatItem.message[0].text;
+        console.log(`💬 ${chatItem.author.name}: ${msg}`);
+
+        if (msg.toLowerCase().includes('!quake')) {
+            console.log("🌋 QUAKE COMMAND RECEIVED!");
+            page.evaluate(() => {
+                if (window.game) window.game.shakeCamera();
+            });
+        }
+    });
+
+    liveChat.on('error', (err) => {
+        // console.log("💬 Chat Conn Error (Retrying in 10s)...");
+        // Retry logic managed by recursive calls on error or interval? 
+        // library emits error then stops.
+    });
+
+    // Wrapper to handle start failure
+    liveChat.start().then(ok => {
+        if (!ok) {
+            console.log("💬 Stream not found yet. Retrying in 15s...");
+            setTimeout(() => connectToChat(channelId, page), 15000);
+        }
+    }).catch(e => {
+        console.log("💬 Stream not live yet. Retrying in 15s...");
+        setTimeout(() => connectToChat(channelId, page), 15000);
     });
 }
