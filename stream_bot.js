@@ -19,7 +19,7 @@ if (!STREAM_KEY) {
 const app = express();
 
 app.use((req, res, next) => {
-    console.log(`📥 HTTP Request: ${req.method} ${req.url}`);
+    // console.log(`📥 HTTP Request: ${req.method} ${req.url}`); // Reduced log noise
     next();
 });
 
@@ -51,7 +51,6 @@ async function startStream() {
 
     page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
 
-    // Use 127.0.0.1
     try {
         await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'networkidle2' });
     } catch (e) {
@@ -63,25 +62,34 @@ async function startStream() {
     const display = process.env.DISPLAY || ':99';
 
     const ffmpegArgs = [
+        // INPUT 0: VIDEO (X11)
         '-f', 'x11grab',
         '-s', `${SCREEN_WIDTH}x${SCREEN_HEIGHT}`,
         '-r', '30',
         '-i', `${display}.0+0,0`,
 
-        // --- FIX: ADD DUMMY AUDIO (YouTube Needs Audio!) ---
+        // INPUT 1: AUDIO (Silence Generator)
         '-f', 'lavfi',
         '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
-        '-c:a', 'aac',
-        '-b:a', '128k',
-        // --------------------------------------------------
 
+        // MAP STREAMS (CRITICAL FOR YOUTUBE)
+        '-map', '0:v', // Video from input 0
+        '-map', '1:a', // Audio from input 1
+
+        // VIDEO ENCODING
         '-c:v', 'libx264',
-        '-preset', 'veryfast',
-        '-b:v', '3000k',
-        '-maxrate', '3000k',
-        '-bufsize', '6000k',
+        '-preset', 'ultrafast', // Speed up encoding for VPS CPU (fixes buffering)
+        '-b:v', '2500k',       // Slightly lower bitrate for stability
+        '-maxrate', '2500k',
+        '-bufsize', '5000k',
         '-pix_fmt', 'yuv420p',
         '-g', '60',
+
+        // AUDIO ENCODING
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-ar', '44100',
+
         '-f', 'flv',
         `${RTMP_URL}/${STREAM_KEY}`
     ];
@@ -89,7 +97,7 @@ async function startStream() {
     const ffmpeg = spawn('ffmpeg', ffmpegArgs);
 
     ffmpeg.stderr.on('data', (data) => {
-        // console.log(`ffmpeg: ${data}`); 
+        // console.log(`ffmpeg: ${data}`); // Uncomment if you need detailed logs
     });
 
     ffmpeg.on('close', (code) => {
