@@ -30,6 +30,7 @@ async function startStream() {
     console.log("🚀 Launching Browser...");
     const browser = await puppeteer.launch({
         headless: false,
+        ignoreDefaultArgs: ['--enable-automation'], // Hides "Chrome is being controlled..." bar
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',

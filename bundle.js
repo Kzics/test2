@@ -481,13 +481,15 @@ class Game {
 
     triggerQuake(user) {
         this.renderer.eventMsg = `${user} activated QUAKE!`;
-        this.renderer.eventTimer = 180; // 3 seconds display
+        this.renderer.eventTimer = 180;
 
-        // Random velocity to all
+        // Randomize Direction (Chaos)
         this.entities.forEach(e => {
             if (!e.isDead) {
-                e.velX += (Math.random() - 0.5) * 15;
-                e.velY += (Math.random() - 0.5) * 15;
+                const speed = Math.sqrt(e.velX ** 2 + e.velY ** 2) + 5; // Add some energy
+                const newAngle = Math.random() * Math.PI * 2;
+                e.velX = Math.cos(newAngle) * speed;
+                e.velY = Math.sin(newAngle) * speed;
             }
         });
     }
@@ -496,8 +498,12 @@ class Game {
         this.renderer.eventMsg = `${user} activated TNT!`;
         this.renderer.eventTimer = 180;
 
-        // Spawn TNT at center (or random?) - Center for chaos
-        this.physics.tnts.push(new TNT(SCREEN_W / 2, SCREEN_H / 2));
+        // Random Position (Safe from walls)
+        const margin = 100;
+        const x = margin + Math.random() * (SCREEN_W - margin * 2);
+        const y = margin + Math.random() * (SCREEN_H - margin * 2);
+
+        this.physics.tnts.push(new TNT(x, y));
     }
 
     startRound() {
