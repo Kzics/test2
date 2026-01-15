@@ -540,5 +540,6 @@ class Game {
 }
 
 window.onload = () => {
+    console.log("🎮 GAME STARTED SUCCESSFULLY - HELLO FROM BUNDLE.JS");
     window.game = new Game();
 };

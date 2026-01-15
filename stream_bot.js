@@ -18,7 +18,6 @@ if (!STREAM_KEY) {
 // 1. Start Static Server with Debugging
 const app = express();
 
-// MIDDLEWARE: Log every request
 app.use((req, res, next) => {
     console.log(`📥 HTTP Request: ${req.method} ${req.url}`);
     next();
@@ -26,9 +25,8 @@ app.use((req, res, next) => {
 
 app.use(express.static(__dirname));
 
-const server = app.listen(PORT, '127.0.0.1', () => { // Bind to IPv4 explicitly
+const server = app.listen(PORT, '127.0.0.1', () => {
     console.log(`✅ Game Server running on http://127.0.0.1:${PORT}`);
-    console.log(`📂 Serving files from: ${__dirname}`);
     startStream();
 });
 
@@ -52,9 +50,6 @@ async function startStream() {
     await page.setViewport({ width: SCREEN_WIDTH, height: SCREEN_HEIGHT });
 
     page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
-    page.on('requestfailed', request => {
-        console.log(`❌ BROWSER LOAD FAIL: ${request.url()} - ${request.failure().errorText}`);
-    });
 
     // Use 127.0.0.1
     try {
@@ -63,7 +58,7 @@ async function startStream() {
         console.error("❌ Error loading page:", e);
     }
 
-    console.log("✅ Page loaded commands sent. Starting FFmpeg...");
+    console.log("✅ Game Loaded. Starting FFmpeg...");
 
     const display = process.env.DISPLAY || ':99';
 
@@ -72,6 +67,14 @@ async function startStream() {
         '-s', `${SCREEN_WIDTH}x${SCREEN_HEIGHT}`,
         '-r', '30',
         '-i', `${display}.0+0,0`,
+
+        // --- FIX: ADD DUMMY AUDIO (YouTube Needs Audio!) ---
+        '-f', 'lavfi',
+        '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        // --------------------------------------------------
+
         '-c:v', 'libx264',
         '-preset', 'veryfast',
         '-b:v', '3000k',
@@ -86,7 +89,7 @@ async function startStream() {
     const ffmpeg = spawn('ffmpeg', ffmpegArgs);
 
     ffmpeg.stderr.on('data', (data) => {
-        // console.log(`ffmpeg: ${data}`); // Keep commented to reduce noise unless needed
+        // console.log(`ffmpeg: ${data}`); 
     });
 
     ffmpeg.on('close', (code) => {
