@@ -5,35 +5,42 @@ const path = require('path');
 
 // --- CONFIGURATION ---
 const PORT = 3000;
-const STREAM_KEY = process.argv[2]; // Pass stream key as argument
-const RTMP_URL = "rtmp://a.rtmp.youtube.com/live2"; // YouTube Ingest (Change for TikTok/Twitch)
+const STREAM_KEY = process.argv[2];
+const RTMP_URL = "rtmp://a.rtmp.youtube.com/live2";
 const SCREEN_WIDTH = 720;
 const SCREEN_HEIGHT = 1280;
 
 if (!STREAM_KEY) {
     console.error("❌ Error: You must provide a Stream Key!");
-    console.error("Usage: node stream_bot.js <YOUR_STREAM_KEY>");
     process.exit(1);
 }
 
-// 1. Start Static Server
+// 1. Start Static Server with Debugging
 const app = express();
-app.use(express.static(__dirname)); // Serve current folder
-const server = app.listen(PORT, () => {
-    console.log(`✅ Game Server running on http://localhost:${PORT}`);
+
+// MIDDLEWARE: Log every request
+app.use((req, res, next) => {
+    console.log(`📥 HTTP Request: ${req.method} ${req.url}`);
+    next();
+});
+
+app.use(express.static(__dirname));
+
+const server = app.listen(PORT, '127.0.0.1', () => { // Bind to IPv4 explicitly
+    console.log(`✅ Game Server running on http://127.0.0.1:${PORT}`);
+    console.log(`📂 Serving files from: ${__dirname}`);
     startStream();
 });
 
 async function startStream() {
-    // 2. Launch Browser (Handled by Puppeteer)
     console.log("🚀 Launching Browser...");
     const browser = await puppeteer.launch({
-        headless: false, // REQUIRED for Xvfb capture
+        headless: false,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
-            '--disable-gpu', // Vital for VPS
-            '--disable-dev-shm-usage', // Vital for VPS low shared mem
+            '--disable-gpu',
+            '--disable-dev-shm-usage',
             '--kiosk',
             `--window-size=${SCREEN_WIDTH},${SCREEN_HEIGHT}`,
             '--autoplay-policy=no-user-gesture-required'
@@ -43,37 +50,43 @@ async function startStream() {
 
     const page = await browser.newPage();
     await page.setViewport({ width: SCREEN_WIDTH, height: SCREEN_HEIGHT });
-    // Add simple logging to browser console to debug rendering
-    page.on('console', msg => console.log('BROWSER PAGE LOG:', msg.text()));
 
-    await page.goto(`http://localhost:${PORT}/index.html`);
+    page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
+    page.on('requestfailed', request => {
+        console.log(`❌ BROWSER LOAD FAIL: ${request.url()} - ${request.failure().errorText}`);
+    });
 
-    console.log("✅ Game Loaded. Starting FFmpeg...");
+    // Use 127.0.0.1
+    try {
+        await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'networkidle2' });
+    } catch (e) {
+        console.error("❌ Error loading page:", e);
+    }
 
-    // 3. Start FFmpeg (Capturing X11 Display)
+    console.log("✅ Page loaded commands sent. Starting FFmpeg...");
+
     const display = process.env.DISPLAY || ':99';
 
     const ffmpegArgs = [
         '-f', 'x11grab',
         '-s', `${SCREEN_WIDTH}x${SCREEN_HEIGHT}`,
-        '-r', '30', // 30 FPS
-        '-i', `${display}.0+0,0`, // Capture Display
+        '-r', '30',
+        '-i', `${display}.0+0,0`,
         '-c:v', 'libx264',
         '-preset', 'veryfast',
-        '-b:v', '3000k', // Bitrate
+        '-b:v', '3000k',
         '-maxrate', '3000k',
         '-bufsize', '6000k',
         '-pix_fmt', 'yuv420p',
-        '-g', '60', // Keyframe interval (2s for 30fps)
+        '-g', '60',
         '-f', 'flv',
         `${RTMP_URL}/${STREAM_KEY}`
     ];
 
     const ffmpeg = spawn('ffmpeg', ffmpegArgs);
 
-    // ENABLE LOGS TO DEBUG WHY IT FAILS
     ffmpeg.stderr.on('data', (data) => {
-        console.log(`ffmpeg: ${data}`);
+        // console.log(`ffmpeg: ${data}`); // Keep commented to reduce noise unless needed
     });
 
     ffmpeg.on('close', (code) => {
@@ -83,5 +96,5 @@ async function startStream() {
         process.exit(code);
     });
 
-    console.log("🔴 Streaming Live! Press Ctrl+C to stop.");
+    console.log("🔴 Streaming Live! Check YouTube.");
 }
