@@ -119,11 +119,15 @@ function connectToChat(channelId, page) {
         const msg = chatItem.message[0].text;
         console.log(`💬 ${chatItem.author.name}: ${msg}`);
 
-        if (msg.toLowerCase().includes('!quake')) {
-            console.log("🌋 QUAKE COMMAND RECEIVED!");
-            page.evaluate(() => {
-                if (window.game) window.game.shakeCamera();
-            });
+        if (msg.startsWith('!')) {
+            const cmd = msg.split(' ')[0]; // Get command part
+            const user = chatItem.author.name;
+
+            page.evaluate((command, username) => {
+                if (window.game && window.game.handleChatCommand) {
+                    window.game.handleChatCommand(command, username);
+                }
+            }, cmd, user);
         }
     });
 
