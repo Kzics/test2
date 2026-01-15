@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flag Race - OBS Output</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- NEW KILL FEED CONTAINER -->
+        <div id="kill-feed"></div>
+
+        <!-- Hidden UI for OBS readability if needed in future -->
+        <div id="top-bar">
+            <div id="map-name">Loading...</div>
+            <div id="round-counter">#1</div>
+            <div id="game-timer">00:00</div>
+        </div>
+        <div id="leaderboard">
+            <h3>LEADERS</h3>
+            <ul id="leaderboard-list"></ul>
+        </div>
+
+        <div id="victory-screen" class="hidden">
+            <div class="winner-container">
+                <div id="winner-flag" class="winner-flag">🏳️</div>
+                <div id="winner-name">WINNER</div>
+            </div>
+
+            <div id="victory-ranking">
+                <h3>Top Countries</h3>
+                <ul><!-- JS Populated --></ul>
+            </div>
+
+            <div class="restart-msg">Next Round in <span id="restart-timer">5</span>s</div>
+        </div>
+    </div>
+
+    <!-- Hidden Controls for Streamer (Interactive) -->
+    <div id="control-panel">
+        <button onclick="window.game.spawnBomb()">💣 Bomb</button>
+        <button onclick="window.game.toggleGravity()">🌌 Low G</button>
+        <button onclick="window.game.shakeCamera()">🌍 Quake</button>
+        <button onclick="window.game.windGust()">💨 Wind</button>
+        <button onclick="window.game.giantMode()">🍄 Giant</button>
+    </div>
+
+    <script src="bundle.js"></script>
+</body>
+
+</html>
