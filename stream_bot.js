@@ -1,12 +1,13 @@
 const express = require('express');
 const { spawn } = require('child_process');
 const puppeteer = require('puppeteer');
-const { LiveChat } = require('youtube-chat'); // NEW LIBRARY
+const { LiveChat } = require('youtube-chat');
+const fs = require('fs'); // NEW
 
 // --- CONFIGURATION ---
 const PORT = 3000;
 const STREAM_KEY = process.argv[2];
-const CHANNEL_ID = process.argv[3]; // Capture Channel ID/Video ID as 2nd arg
+const CHANNEL_ID = process.argv[3];
 
 const RTMP_URL = "rtmp://a.rtmp.youtube.com/live2";
 const SCREEN_WIDTH = 720;
@@ -71,25 +72,40 @@ async function startStream() {
         console.log("⚠️ No Channel ID provided. Chat interaction disabled.");
     }
 
-
-
     try {
         await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'networkidle2' });
     } catch (e) {
         console.error("❌ Error loading page:", e);
     }
 
-    console.log("✅ Game Loaded. Starting FFmpeg...");
+    console.log("✅ Game Loaded. Preparing FFmpeg...");
 
     const display = process.env.DISPLAY || ':99';
+
+    // AUDIO LOGIC
+    let audioArgs = [];
+    if (fs.existsSync('bgm.mp3')) {
+        console.log("🎵 Custom Audio Found: bgm.mp3 (Looping)");
+        audioArgs = [
+            '-stream_loop', '-1', // Loop forever
+            '-i', 'bgm.mp3'
+        ];
+    } else {
+        console.log("🔇 No 'bgm.mp3' found. Using dummy silence.");
+        audioArgs = [
+            '-f', 'lavfi',
+            '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'
+        ];
+    }
 
     const ffmpegArgs = [
         '-f', 'x11grab',
         '-s', `${SCREEN_WIDTH}x${SCREEN_HEIGHT}`,
         '-r', '25',
         '-i', `${display}.0+0,0`,
-        '-f', 'lavfi',
-        '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+
+        ...audioArgs, // Insert Audio Args
+
         '-map', '0:v',
         '-map', '1:a',
         '-c:v', 'libx264',
