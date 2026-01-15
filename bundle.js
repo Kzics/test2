@@ -112,167 +112,164 @@ class Physics {
         this.substeps = 3; // OPTIMIZED FOR VPS (Was 8)
     }
 
-    spawnParticles(x, y, color = '#FFF', count = 3, speed = 5) { // Reduced default count
+    spawnParticles(x, y, color = '#FFF', count = 3, speed = 5) {
         // REDUCED PARTICLES FOR VPS PERFORMANCE
         for (let i = 0; i < 2; i++) { // Hard cap to 2 max per event
             this.particles.push(new Particle(x, y, color, speed));
         }
     }
-// ...
-        this.targetSpeed = 4.0;
-this.particles = [];
-this.mapBounds = { w: SCREEN_W, h: SCREEN_H };
-this.substeps = 3; // REDUCED FROM 8 TO 3 FOR CPU SAVINGS
-    }
 
-for (let i = this.particles.length - 1; i >= 0; i--) {
-    let p = this.particles[i];
-    p.update();
-    if (p.life <= 0) this.particles.splice(i, 1);
-}
+    update(entities, map, onDeathCallback) {
+        this.mapBounds = { w: map.width, h: map.height };
 
-const dt = 1.0 / this.substeps;
-
-for (let s = 0; s < this.substeps; s++) {
-    entities.forEach(entity => {
-        if (entity.isDead) return;
-
-        if (entity.damageCooldown > 0) entity.damageCooldown -= dt;
-
-        entity.x += entity.velX * dt;
-        entity.y += entity.velY * dt;
-
-        entity.velX *= Math.pow(this.friction, dt);
-        entity.velY *= Math.pow(this.friction, dt);
-
-        for (let platform of map.platforms) {
-            this.resolveAABBCollision(entity, platform);
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            let p = this.particles[i];
+            p.update();
+            if (p.life <= 0) this.particles.splice(i, 1);
         }
 
-        this.enforceBounds(entity);
-    });
+        const dt = 1.0 / this.substeps;
 
-    for (let i = 0; i < entities.length; i++) {
-        for (let j = i + 1; j < entities.length; j++) {
-            if (!entities[i].isDead && !entities[j].isDead) {
-                this.resolveElasticCollision(entities[i], entities[j], onDeathCallback);
+        for (let s = 0; s < this.substeps; s++) {
+            entities.forEach(entity => {
+                if (entity.isDead) return;
+
+                if (entity.damageCooldown > 0) entity.damageCooldown -= dt;
+
+                entity.x += entity.velX * dt;
+                entity.y += entity.velY * dt;
+
+                entity.velX *= Math.pow(this.friction, dt);
+                entity.velY *= Math.pow(this.friction, dt);
+
+                for (let platform of map.platforms) {
+                    this.resolveAABBCollision(entity, platform);
+                }
+
+                this.enforceBounds(entity);
+            });
+
+            for (let i = 0; i < entities.length; i++) {
+                for (let j = i + 1; j < entities.length; j++) {
+                    if (!entities[i].isDead && !entities[j].isDead) {
+                        this.resolveElasticCollision(entities[i], entities[j], onDeathCallback);
+                    }
+                }
+            }
+        }
+
+        // ENFORCE CONSTANT SPEED at end of frame
+        entities.forEach(entity => {
+            if (entity.isDead) return;
+            const currentSpeed = Math.sqrt(entity.velX ** 2 + entity.velY ** 2);
+
+            if (currentSpeed < 0.1) {
+                const angle = Math.random() * Math.PI * 2;
+                entity.velX = Math.cos(angle) * this.targetSpeed;
+                entity.velY = Math.sin(angle) * this.targetSpeed;
+            } else {
+                const scale = this.targetSpeed / currentSpeed;
+                entity.velX *= scale;
+                entity.velY *= scale;
+            }
+        });
+    }
+
+    enforceBounds(entity) {
+        if (entity.x - entity.radius < 0) {
+            entity.x = entity.radius;
+            entity.velX = Math.abs(entity.velX);
+        }
+        if (entity.x + entity.radius > this.mapBounds.w) {
+            entity.x = this.mapBounds.w - entity.radius;
+            entity.velX = -Math.abs(entity.velX);
+        }
+        if (entity.y - entity.radius < 0) {
+            entity.y = entity.radius;
+            entity.velY = Math.abs(entity.velY);
+        }
+        if (entity.y + entity.radius > this.mapBounds.h) {
+            entity.y = this.mapBounds.h - entity.radius;
+            entity.velY = -Math.abs(entity.velY);
+        }
+    }
+
+    resolveAABBCollision(circle, rect) {
+        let closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.w));
+        let closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.h));
+
+        let dx = circle.x - closestX;
+        let dy = circle.y - closestY;
+        let distanceSq = dx * dx + dy * dy;
+
+        if (distanceSq < (circle.radius * circle.scale) ** 2) {
+            let distance = Math.sqrt(distanceSq);
+            if (distance === 0) distance = 0.01;
+            let overlap = (circle.radius * circle.scale) - distance;
+
+            let nx = dx / distance;
+            let ny = dy / distance;
+
+            circle.x += nx * overlap;
+            circle.y += ny * overlap;
+
+            let dot = circle.velX * nx + circle.velY * ny;
+            if (dot < 0) {
+                circle.velX = (circle.velX - 2 * dot * nx);
+                circle.velY = (circle.velY - 2 * dot * ny);
+                this.spawnParticles(closestX, closestY, '#FFCC00', 2, 5);
             }
         }
     }
-}
 
-// ENFORCE CONSTANT SPEED at end of frame
-entities.forEach(entity => {
-    if (entity.isDead) return;
-    const currentSpeed = Math.sqrt(entity.velX ** 2 + entity.velY ** 2);
+    resolveElasticCollision(c1, c2, onDeathCallback) {
+        if (c1.isDead || c2.isDead) return;
 
-    if (currentSpeed < 0.1) {
-        const angle = Math.random() * Math.PI * 2;
-        entity.velX = Math.cos(angle) * this.targetSpeed;
-        entity.velY = Math.sin(angle) * this.targetSpeed;
-    } else {
-        const scale = this.targetSpeed / currentSpeed;
-        entity.velX *= scale;
-        entity.velY *= scale;
-    }
-});
-    }
+        let dx = c2.x - c1.x;
+        let dy = c2.y - c1.y;
+        let distSq = dx * dx + dy * dy;
+        let safeDist = (c1.radius * c1.scale) + (c2.radius * c2.scale);
 
-enforceBounds(entity) {
-    if (entity.x - entity.radius < 0) {
-        entity.x = entity.radius;
-        entity.velX = Math.abs(entity.velX);
-    }
-    if (entity.x + entity.radius > this.mapBounds.w) {
-        entity.x = this.mapBounds.w - entity.radius;
-        entity.velX = -Math.abs(entity.velX);
-    }
-    if (entity.y - entity.radius < 0) {
-        entity.y = entity.radius;
-        entity.velY = Math.abs(entity.velY);
-    }
-    if (entity.y + entity.radius > this.mapBounds.h) {
-        entity.y = this.mapBounds.h - entity.radius;
-        entity.velY = -Math.abs(entity.velY);
-    }
-}
+        if (distSq < safeDist * safeDist) {
+            if (onDeathCallback) {
+                const died1 = c1.takeDamage(c2.countryCode);
+                const died2 = c2.takeDamage(c1.countryCode);
 
-resolveAABBCollision(circle, rect) {
-    let closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.w));
-    let closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.h));
+                if (died1) onDeathCallback(c1, c2);
+                if (died2) onDeathCallback(c2, c1);
 
-    let dx = circle.x - closestX;
-    let dy = circle.y - closestY;
-    let distanceSq = dx * dx + dy * dy;
+                if (c1.isDead || c2.isDead) return;
+            }
 
-    if (distanceSq < (circle.radius * circle.scale) ** 2) {
-        let distance = Math.sqrt(distanceSq);
-        if (distance === 0) distance = 0.01;
-        let overlap = (circle.radius * circle.scale) - distance;
+            let dist = Math.sqrt(distSq);
+            if (dist === 0) dist = 0.01;
+            let nx = dx / dist;
+            let ny = dy / dist;
 
-        let nx = dx / distance;
-        let ny = dy / distance;
+            let overlap = (safeDist - dist) / 2;
+            c1.x -= nx * overlap;
+            c1.y -= ny * overlap;
+            c2.x += nx * overlap;
+            c2.y += ny * overlap;
 
-        circle.x += nx * overlap;
-        circle.y += ny * overlap;
+            let v1n = c1.velX * nx + c1.velY * ny;
+            let v2n = c2.velX * nx + c2.velY * ny;
 
-        let dot = circle.velX * nx + circle.velY * ny;
-        if (dot < 0) {
-            circle.velX = (circle.velX - 2 * dot * nx);
-            circle.velY = (circle.velY - 2 * dot * ny);
-            this.spawnParticles(closestX, closestY, '#FFCC00', 2, 5);
+            let m1 = c1.mass * c1.scale;
+            let m2 = c2.mass * c2.scale;
+
+            let newV1n = (v1n * (m1 - m2) + 2 * m2 * v2n) / (m1 + m2);
+            let newV2n = (v2n * (m2 - m1) + 2 * m1 * v1n) / (m1 + m2);
+
+            let dv1 = newV1n - v1n;
+            let dv2 = newV2n - v2n;
+
+            c1.velX += dv1 * nx;
+            c1.velY += dv1 * ny;
+            c2.velX += dv2 * nx;
+            c2.velY += dv2 * ny;
         }
     }
-}
-
-resolveElasticCollision(c1, c2, onDeathCallback) {
-    if (c1.isDead || c2.isDead) return;
-
-    let dx = c2.x - c1.x;
-    let dy = c2.y - c1.y;
-    let distSq = dx * dx + dy * dy;
-    let safeDist = (c1.radius * c1.scale) + (c2.radius * c2.scale);
-
-    if (distSq < safeDist * safeDist) {
-        if (onDeathCallback) {
-            const died1 = c1.takeDamage(c2.countryCode);
-            const died2 = c2.takeDamage(c1.countryCode);
-
-            if (died1) onDeathCallback(c1, c2);
-            if (died2) onDeathCallback(c2, c1);
-
-            if (c1.isDead || c2.isDead) return;
-        }
-
-        let dist = Math.sqrt(distSq);
-        if (dist === 0) dist = 0.01;
-        let nx = dx / dist;
-        let ny = dy / dist;
-
-        let overlap = (safeDist - dist) / 2;
-        c1.x -= nx * overlap;
-        c1.y -= ny * overlap;
-        c2.x += nx * overlap;
-        c2.y += ny * overlap;
-
-        let v1n = c1.velX * nx + c1.velY * ny;
-        let v2n = c2.velX * nx + c2.velY * ny;
-
-        let m1 = c1.mass * c1.scale;
-        let m2 = c2.mass * c2.scale;
-
-        let newV1n = (v1n * (m1 - m2) + 2 * m2 * v2n) / (m1 + m2);
-        let newV2n = (v2n * (m2 - m1) + 2 * m1 * v1n) / (m1 + m2);
-
-        let dv1 = newV1n - v1n;
-        let dv2 = newV2n - v2n;
-
-        c1.velX += dv1 * nx;
-        c1.velY += dv1 * ny;
-        c2.velX += dv2 * nx;
-        c2.velY += dv2 * ny;
-    }
-}
 }
 
 // --- 4. RENDERER ---
@@ -303,6 +300,22 @@ class Renderer {
         for (let p of map.platforms) {
             this.ctx.fillRect(p.x, p.y, p.w, p.h);
             this.ctx.strokeRect(p.x, p.y, p.w, p.h);
+        }
+
+        // DRAW TRAPS (Spikes)
+        if (map.traps) {
+            for (let t of map.traps) {
+                if (t.type === 'spike') {
+                    this.ctx.fillStyle = '#FF0000';
+                    this.ctx.fillRect(t.x, t.y, t.w, t.h);
+                }
+                else if (t.type === 'bumper') {
+                    this.ctx.fillStyle = '#FFFF00';
+                    this.ctx.beginPath();
+                    this.ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+                    this.ctx.fill();
+                }
+            }
         }
 
         this.ctx.restore();
